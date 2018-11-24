@@ -2,6 +2,7 @@ import numpy as np
 import random
 import glob
 import pandas as pd
+import multiprocessing as mp
 
 
 def euclidean_dist(t1, t2):
@@ -84,59 +85,101 @@ class Tscluster:
                 print('Iteration : ' + str(n+1))
 
             for c, j in enumerate(self.centroids):
-                print("cluster " + str(j) + ":")
-                print(c)
+                print("cluster " + str(c) + ":")
+                print(j)
 
             # assign data points to clusters
             self.assignments = {}
-            for t, i in data.items():
-                min_dist = float('inf')
-                closest_cluster = None
-                print("Stock: " + t)
-                for c_ind, j in enumerate(self.centroids):
-                    if lb_keogh(i, j, 5) < min_dist:
-                        cur_dist = dtw_distance(i, j, w)
-                        if cur_dist < min_dist:
-                            min_dist = cur_dist
-                            closest_cluster = c_ind
 
-                if closest_cluster not in self.assignments:
-                    self.assignments[closest_cluster] = []
+            # manager = mp.Manager()
+            #
+            # self.assignments = manager.dict()
+            # self.assignments['Outliers'] = []
+            # for i in range(self.num_cluster):
+            #     self.assignments[i] = []
 
-                self.assignments[closest_cluster].append(t)
+            # for t, i in data.items():
+            #     min_dist = float('inf')
+            #     closest_cluster = "Outlier"
+            #     print("Stock: " + t)
+            #     for c_ind, j in enumerate(self.centroids):
+            #         if lb_keogh(i, j, 5) < min_dist:
+            #             cur_dist = dtw_distance(i, j, w)
+            #             if cur_dist < min_dist:
+            #                 min_dist = cur_dist
+            #                 closest_cluster = c_ind
+            #
+            #     if closest_cluster not in self.assignments:
+            #         self.assignments[closest_cluster] = []
+            #
+            #     self.assignments[closest_cluster].append(t)
+            #
+            #     print(self.assignments)
 
-                print(self.assignments)
+            args = [(t, i, w) for t, i in data.items()]
+            pool = mp.Pool(processes=mp.cpu_count())
+            assignments = pool.map(self.k_means_util_multiprocessing, args)
+            pool.close()
+            pool.join()
+
+            print(assignments)
+            for assignment in assignments:
+                if assignment[0] not in self.assignments:
+                    self.assignments[assignment[0]] = []
+                self.assignments[assignment[0]].append(assignment[1])
+
+            print(self.assignments)
 
             # recalculate the centroids of clusters
             for key in self.assignments:
                 print(key)
-                cluster_sum = np.zeros(data[self.assignments[key][0]].shape)
-                for k in self.assignments[key]:
-                    cluster_sum = cluster_sum + data[k]
-                self.centroids[key] = cluster_sum / len(self.assignments[key])
+                if key == "Outlier":
+                    cluster_sum = np.zeros(data[self.assignments[key][0]].shape)
+                    for k in self.assignments[key]:
+                        cluster_sum = cluster_sum + data[k]
+                    self.centroids[key] = cluster_sum / len(self.assignments[key])
+
+    def k_means_util_multiprocessing(self, args):
+        assign = []
+        min_dist = float('inf')
+        closest_cluster = "Outlier"
+        print("Stock: " + args[0])
+        for c_ind, j in enumerate(self.centroids):
+            if lb_keogh(args[1], j, 5) < min_dist:
+                cur_dist = dtw_distance(args[1], j, args[2])
+                if cur_dist < min_dist:
+                    min_dist = cur_dist
+                    closest_cluster = c_ind
+
+        assign.append(closest_cluster)
+        assign.append(args[0])
+        return assign
 
 
-files = glob.glob('./preprocessed_stocks/*')
-stock_data = {}
-count = 0
+if __name__ == '__main__':
+    mp.freeze_support()
 
-for i, f in enumerate(files):
-    # read data for each stock
-    t_data = pd.read_csv(f)
+    files = glob.glob('./preprocessed_stocks/*')
+    stock_data = {}
+    count = 0
 
-    # extract data from columns
-    oc = np.reshape(np.asarray(t_data['o/c'].tolist()), (-1, 1))
-    volume = np.reshape(np.asarray(t_data['volume'].tolist()), (-1, 1))
-    high = np.reshape(np.asarray(t_data['high'].tolist()), (-1, 1))
-    low = np.reshape(np.asarray(t_data['low'].tolist()), (-1, 1))
+    for i, f in enumerate(files):
+        # read data for each stock
+        t_data = pd.read_csv(f)
 
-    # get stock ticker name and create 2D numpy array for values
-    ticker = t_data['name'].tolist()[0]
-    ts_data = np.hstack((oc, volume, high, low))
+        # extract data from columns
+        oc = np.reshape(np.asarray(t_data['o/c'].tolist()), (-1, 1))
+        volume = np.reshape(np.asarray(t_data['volume'].tolist()), (-1, 1))
+        high = np.reshape(np.asarray(t_data['high'].tolist()), (-1, 1))
+        low = np.reshape(np.asarray(t_data['low'].tolist()), (-1, 1))
 
-    # handle missing data by ignoring
-    if ts_data.shape[0] == 1259:
-        stock_data[ticker] = ts_data
+        # get stock ticker name and create 2D numpy array for values
+        ticker = t_data['name'].tolist()[0]
+        ts_data = np.hstack((oc, volume, high, low))
 
-cluster = Tscluster(5)
-cluster.k_means_cluster(stock_data, 10, 2, progress=True)
+        # handle missing data by ignoring
+        if ts_data.shape[0] == 1259:
+            stock_data[ticker] = ts_data
+
+    cluster = Tscluster(5)
+    cluster.k_means_cluster(stock_data, 1, 2, progress=True)
