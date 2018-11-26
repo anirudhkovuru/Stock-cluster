@@ -72,7 +72,7 @@ class Tscluster:
         """
         self.num_cluster = num_cluster
         self.assignments = {}
-        self.centroids = []
+        self.centroids = [0] * num_cluster
 
     def k_means_cluster(self, data, num_iter, w, callback=None, progress=False):
         """
@@ -94,7 +94,7 @@ class Tscluster:
             for k, c in enumerate(self.centroids):
                 print("cluster " + str(k) + ":")
                 print(c)
-                file_inp = open('ckpt_20_cluster_8', 'wb')
+                file_inp = open('ckpt_test', 'wb')
                 pickle.dump(k, file_inp)
                 pickle.dump(c, file_inp)
 
@@ -168,4 +168,4 @@ if __name__ == '__main__':
             stock_data[ticker] = ts_data
 
     cluster = Tscluster(8)
-    cluster.k_means_cluster(stock_data, 20, 2, callback=None, progress=True)
+    cluster.k_means_cluster(stock_data, 1, 2, callback='chckpt_20', progress=True)
