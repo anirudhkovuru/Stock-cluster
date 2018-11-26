@@ -1,5 +1,4 @@
 import numpy as np
-import random
 import glob
 import pandas as pd
 import multiprocessing as mp
@@ -17,11 +16,29 @@ final_cluster = {0: ['TEL', 'PX', 'APA', 'NOV', 'ARNC', 'FRT', 'LUK', 'RCL', 'MR
 
 stock_data = []
 
+
 def euclidean_dist(t1, t2):
     dist = 0
     for j in range(len(t1)):
         dist = dist + (t1[j] - t2[j]) ** 2
     return dist
+
+
+def lb_keogh(s1, s2, r):
+    lb_sum = 0
+    for ind, i in enumerate(s1):
+
+        lower_bound = np.amin(s2[(ind - r if ind - r >= 0 else 0):(ind + r)], axis=0)
+        upper_bound = np.amax(s2[(ind - r if ind - r >= 0 else 0):(ind + r)], axis=0)
+
+        for j in range(len(i)):
+            if i[j] > upper_bound[j]:
+                lb_sum = lb_sum + (i[j] - upper_bound[j]) ** 2
+            elif i[j] < lower_bound[j]:
+                lb_sum = lb_sum + (i[j] - lower_bound[j]) ** 2
+
+    return np.sqrt(lb_sum)
+
 
 def dtw_distance(s1, s2, w=None):
     """
@@ -57,7 +74,6 @@ def dtw_distance(s1, s2, w=None):
     return np.sqrt(dtw[len(s1) - 1, len(s2) - 1])
 
 
-
 class Silhouette:
     def __init__(self, stock_data):
         self.assignments = {}
@@ -68,19 +84,19 @@ class Silhouette:
         print("Stock: " + args[0])
         sum_local = 0
         for stock_local in final_cluster[args[1]]:
-            sum_local = sum_local + dtw_distance(self.stock_data[args[0]], self.stock_data[stock_local])
+            sum_local = sum_local + lb_keogh(self.stock_data[args[0]], self.stock_data[stock_local], 5)
         a = sum_local / final_cluster[args[1]].__sizeof__()
         sum_inter_cluster = 0
         count_inter_cluster = 0
         for j in range(0, 6):
             if j != args[1]:
                 for stock_inter_cluster in final_cluster[j]:
-                    sum_inter_cluster = sum_inter_cluster + dtw_distance(self.stock_data[args[0]],
-                                                                         self.stock_data[stock_inter_cluster])
+                    sum_inter_cluster = sum_inter_cluster + lb_keogh(self.stock_data[args[0]],
+                                                                         self.stock_data[stock_inter_cluster], 5)
                     count_inter_cluster += 1
         b = sum_inter_cluster / count_inter_cluster
-
         final_silhouette[args[0]] = ((b - a) / max(b, a))
+        print(final_silhouette)
         return final_silhouette
 
     def calc_silhouette(self):
@@ -122,11 +138,11 @@ if __name__ == '__main__':
         if ts_data.shape[0] == 1259:
             stock_data[ticker] = ts_data
     print(stock_data.keys())
-    silhouete =Silhouette(stock_data)
-    silhouete_score = silhouete.calc_silhouette()
+    silhouette = Silhouette(stock_data)
+    silhouette_score = silhouette.calc_silhouette()
     log_file = open('silhouette_log', 'wb')
-    pickle.dump(silhouete_score, log_file)
+    pickle.dump(silhouette_score, log_file)
     log_file.close()
-    print(silhouete_score)
+    print(silhouette_score)
 
 

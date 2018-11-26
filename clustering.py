@@ -91,12 +91,12 @@ class Tscluster:
             if progress:
                 print('Iteration : ' + str(n+1))
             db = {}
-            file_inp = open('chckpt_' + str(n+1),'wb')
+            file_inp = open('chckpt_' + str(n+1), 'wb')
             for k, c in enumerate(self.centroids):
                 print("cluster " + str(k) + ":")
                 print(c)
                 file_inp = open('ckpt_test', 'wb')
-                db[c] = j 
+                db[k] = c
             pickle.dump(db, file_inp)
 
             # assign data points to clusters
