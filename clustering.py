@@ -5,7 +5,6 @@ import pandas as pd
 import multiprocessing as mp
 import pickle
 
-file = open('outputPickle','ab')
 
 def euclidean_dist(t1, t2):
     dist = 0
@@ -75,51 +74,32 @@ class Tscluster:
         self.assignments = {}
         self.centroids = []
 
-    def k_means_cluster(self, data, num_iter, w, progress=False):
+    def k_means_cluster(self, data, num_iter, w, callback=None, progress=False):
         """
         k-means clustering algorithm for time series data.  dynamic time warping Euclidean distance
         used as default similarity measure.
         """
-        self.centroids = random.sample(list(data.values()), self.num_cluster)
+        if callback is not None:
+            with open(callback, "rb") as ckpt:
+                temp = pickle.load(ckpt)
+                for k, v in temp.items():
+                    self.centroids[k] = v
+        else:
+            self.centroids = random.sample(list(data.values()), self.num_cluster)
 
         for n in range(num_iter):
             if progress:
                 print('Iteration : ' + str(n+1))
 
-            for c, j in enumerate(self.centroids):
-                print("cluster " + str(c) + ":")
-                print(j)
-                file_inp = open('chckpt_20_cluster_8','wb')
+            for k, c in enumerate(self.centroids):
+                print("cluster " + str(k) + ":")
+                print(c)
+                file_inp = open('ckpt_20_cluster_8', 'wb')
+                pickle.dump(k, file_inp)
                 pickle.dump(c, file_inp)
-                pickle.dump(j, file_inp)
 
             # assign data points to clusters
             self.assignments = {}
-
-            # manager = mp.Manager()
-            #
-            # self.assignments = manager.dict()
-            # self.assignments['Outliers'] = []
-            # for i in range(self.num_cluster):
-            #     self.assignments[i] = []
-
-            # for t, i in data.items():
-            #     min_dist = float('inf')
-            #     closest_cluster = "Outlier"
-            #     print("Stock: " + t)
-            #     for c_ind, j in enumerate(self.centroids):
-            #         if lb_keogh(i, j, 5) < min_dist:
-            #             cur_dist = dtw_distance(i, j, w)
-            #             if cur_dist < min_dist:
-            #                 min_dist = cur_dist
-            #                 closest_cluster = c_ind
-            #
-            #     if closest_cluster not in self.assignments:
-            #         self.assignments[closest_cluster] = []
-            #
-            #     self.assignments[closest_cluster].append(t)
-            #
-            #     print(self.assignments)
 
             args = [(t, i, w) for t, i in data.items()]
             pool = mp.Pool(processes=mp.cpu_count())
@@ -127,15 +107,13 @@ class Tscluster:
             pool.close()
             pool.join()
 
-            #print(assignments)
             for assignment in assignments:
                 if assignment[0] not in self.assignments:
                     self.assignments[assignment[0]] = []
                 self.assignments[assignment[0]].append(assignment[1])
 
-            print(self.assignments)
-
             # recalculate the centroids of clusters
+            temp_centroids = self.centroids
             for key in self.assignments:
                 print(key)
                 if key != "Outlier":
@@ -144,11 +122,14 @@ class Tscluster:
                         cluster_sum = cluster_sum + data[k]
                     self.centroids[key] = cluster_sum / len(self.assignments[key])
 
+            if temp_centroids == self.centroids:
+                print("Convergence reached!")
+                break
+
     def k_means_util_multiprocessing(self, args):
         assign = []
         min_dist = float('inf')
         closest_cluster = "Outlier"
-        print("Stock: " + args[0])
         for c_ind, j in enumerate(self.centroids):
             if lb_keogh(args[1], j, 5) < min_dist:
                 cur_dist = dtw_distance(args[1], j, args[2])
@@ -187,4 +168,4 @@ if __name__ == '__main__':
             stock_data[ticker] = ts_data
 
     cluster = Tscluster(8)
-    cluster.k_means_cluster(stock_data, 20, 2, progress=True)
+    cluster.k_means_cluster(stock_data, 20, 2, callback=None, progress=True)
