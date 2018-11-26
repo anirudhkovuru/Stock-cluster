@@ -3,7 +3,9 @@ import random
 import glob
 import pandas as pd
 import multiprocessing as mp
+import pickle
 
+file = open('outputPickle','ab')
 
 def euclidean_dist(t1, t2):
     dist = 0
@@ -87,6 +89,9 @@ class Tscluster:
             for c, j in enumerate(self.centroids):
                 print("cluster " + str(c) + ":")
                 print(j)
+                file_inp = open('chckpt_20_cluster_8','wb')
+                pickle.dump(c, file_inp)
+                pickle.dump(j, file_inp)
 
             # assign data points to clusters
             self.assignments = {}
@@ -122,7 +127,7 @@ class Tscluster:
             pool.close()
             pool.join()
 
-            print(assignments)
+            #print(assignments)
             for assignment in assignments:
                 if assignment[0] not in self.assignments:
                     self.assignments[assignment[0]] = []
@@ -133,7 +138,7 @@ class Tscluster:
             # recalculate the centroids of clusters
             for key in self.assignments:
                 print(key)
-                if key == "Outlier":
+                if key != "Outlier":
                     cluster_sum = np.zeros(data[self.assignments[key][0]].shape)
                     for k in self.assignments[key]:
                         cluster_sum = cluster_sum + data[k]
@@ -181,5 +186,5 @@ if __name__ == '__main__':
         if ts_data.shape[0] == 1259:
             stock_data[ticker] = ts_data
 
-    cluster = Tscluster(5)
-    cluster.k_means_cluster(stock_data, 1, 2, progress=True)
+    cluster = Tscluster(8)
+    cluster.k_means_cluster(stock_data, 20, 2, progress=True)
